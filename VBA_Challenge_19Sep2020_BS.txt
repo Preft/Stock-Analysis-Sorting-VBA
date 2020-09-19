@@ -1,0 +1,151 @@
+Attribute VB_Name = "Module1"
+' Credit MultiSheet function to https://www.extendoffice.com/documents/excel/5333-excel-run-macro-multiple-sheets.html
+Sub MultiSheet()
+    Dim xSh As Worksheet
+    Application.ScreenUpdating = False
+    For Each xSh In Worksheets
+        xSh.Select
+        Call StockSorter
+    Next
+    Application.ScreenUpdating = True
+End Sub
+Sub StockSorter():
+    'Declare Variables
+    Dim LastCell, Ticker As String
+    Dim LastRow, TradeDate, OpenNum, CloseNum, VolNum, TotVolNum, HighestTradeDate, LowestTradeDate, InitialPrice, ClosePrice, YearlyChangePrice, YearlyChangePerc As Double
+    
+    ' Getting Last Cell and Last Row
+    LastCell = CStr(Range("A1").SpecialCells(xlCellTypeLastCell).Address)
+    LastCell = Replace(LastCell, "$", "", 1, 2)
+    LastRow = CDbl(Right(LastCell, Len(LastCell) - 1))
+    EntireSet = CStr("A1:" & LastCell)
+    
+    'Sorting Primary Columns
+    ' Credit Sorting function to https://trumpexcel.com/sort-data-vba/
+    With ActiveSheet.Sort
+     .SortFields.Add Key:=Range("A1"), Order:=xlAscending
+     .SortFields.Add Key:=Range("B1"), Order:=xlAscending
+     .SetRange Range(EntireSet)
+     .Header = xlYes
+     .Apply
+    End With
+    
+    'Setting Titles
+        Cells(1, 9).Value = "Ticker"
+        Cells(1, 10).Value = "Yearly Change"
+        Cells(1, 11).Value = "Percent Change"
+        Cells(1, 12).Value = "Total Stock Volume"
+    
+    ' Looping through each row
+    For i = 2 To LastRow
+        ' Obtaining variable Values for a given row
+        Ticker = CStr(Cells(i, 1).Value)
+        TradeDate = CDbl(Cells(i, 2).Value)
+        OpenNum = CDbl(Cells(i, 3).Value)
+        CloseNum = CDbl(Cells(i, 6).Value)
+        VolNum = CDbl(Cells(i, 7).Value)
+        
+        ' Identifying New Ticker to Reset Init Vals
+        If (Ticker <> Cells(i - 1, 1).Value) Then
+            TotVolNum = VolNum
+            HighestTradeDate = TradeDate
+            LowestTradeDate = TradeDate
+            ClosePrice = CloseNum
+            InitialPrice = OpenNum
+        ' Obtaining updated Vals for current Ticker
+        ElseIf (Ticker = Cells(i - 1, 1).Value) Then
+            ' Accruing Volume for a Given Ticker
+            TotVolNum = TotVolNum + VolNum
+            'Obtaining Yearly Open and Close Prices
+            If (TradeDate > HighestTradeDate) Then
+                HighestTradeDate = TradeDate
+                ClosePrice = CloseNum
+            End If
+            If (LowestTradeDate > TradeDate) Then
+                LowestTradeDate = TradeDate
+                InitialPrice = OpenNum
+            End If
+            ' If Market hasn't open for this item from the earliest date of data provided, use the next non-zero open
+            If (InitialPrice = 0) Then
+                LowestTradeDate = TradeDate
+                InitialPrice = OpenNum
+            End If
+        End If
+        ' Out putting Data
+        If (Ticker <> Cells(i + 1, 1).Value) Then
+            For j = 1 To LastRow
+                If (Cells(j, 9) = "") Then
+                    'Calculations
+                    If (InitialPrice <> 0) Then
+                    YearlyChangePrice = CDbl(ClosePrice - InitialPrice)
+                    YearlyChangePerc = Round((100 * (YearlyChangePrice / InitialPrice)), 0)
+                    Else
+                        ' If this condition is true, no non-zero date open price was found. Both output 0 for no change.
+                        YearlyChangePrice = 0
+                        YearlyChangePerc = 0
+                    End If
+                    ' Outputing Data
+                    Cells(j, 9).Value = Ticker
+                    Cells(j, 10).Value = YearlyChangePrice
+                    Cells(j, 11).Value = YearlyChangePerc
+                    Cells(j, 12).Value = TotVolNum
+                ' Change Color of Background for Price
+                    If (YearlyChangePrice < 0) Then
+                        Cells(j, 10).Interior.Color = RGB(255, 0, 0)
+                    ElseIf (YearlyChangePrice > 0) Then
+                        Cells(j, 10).Interior.Color = RGB(0, 255, 0)
+                    Else
+                        Cells(j, 10).Interior.Color = RGB(0, 0, 0)
+                    End If
+            Exit For
+                End If
+            Next j
+        End If
+      Next i
+       
+    ' //////////////////////////////////////////
+    ' //// Bigest Movers and Highest Volume ////
+    ' //////////////////////////////////////////
+      
+    ' Setting Titles for Chart 2
+        Range("O1") = "Ticker"
+        Range("P1") = "Value"
+        Range("N2") = "Greatest Percent Increase"
+        Range("N3") = "Greatest Percent Decrease"
+        Range("N4") = "Greatest Volume"
+
+    ' Cycling Through every Row of new chart
+
+    For k = 2 To 4
+        'Getting all important y Values
+        Ticker = Cells(k, 9).Value
+        YearlyChangePrice = Cells(k, 10).Value
+        YearlyChangePerc = Cells(k, 11).Value
+        TotVolNum = Cells(k, 12).Value
+    
+        ' Grabing Current Top Tickers
+        highestGains = Range("P2").Value
+        LowestGains = Range("P3").Value
+        highestVol = Range("P4").Value
+    
+        ' Changing Top Gainers
+        If (CDbl(YearlyChangePerc) > CDbl(highestGains)) Then
+            Range("O2").Value = Ticker
+            Range("P2").Value = YearlyChangePerc
+        End If
+        If (CDbl(LowestGains) > CDbl(YearlyChangePerc)) Then
+            Range("O3").Value = Ticker
+            Range("P3").Value = YearlyChangePerc
+        End If
+        If (CDbl(TotVolNum) > CDbl(highestVol)) Then
+            Range("O4").Value = Ticker
+            Range("P4").Value = TotVolNum
+        End If
+    
+    Next k
+
+End Sub
+
+
+
+
